@@ -3,6 +3,7 @@
 pragma solidity 0.8.19;
 
 import {SubscriptionConsumer} from "./SubscriptionConsumer.sol";
+import {AutomationCompatibleInterface} from "@chainlink/contracts@1.2.0/src/v0.8/automation/AutomationCompatible.sol";
 
 /**
  * @title Raffle Contract
@@ -12,14 +13,14 @@ import {SubscriptionConsumer} from "./SubscriptionConsumer.sol";
  */
 import {IRaffle} from "./IRaffle.sol";
 
-contract Raffle is IRaffle {
+contract Raffle is IRaffle, AutomationCompatibleInterface {
     /**
      * Errors
      */
     error Raffle__InvalidEntranceFee(uint256 entranceFee, uint256 minimumEntranceFee);
-    error Raffle__NotEnoughTimePassed(uint256 lastTimeStamp, uint256 interval);
     error Raffle__TransferFailed(address player, uint256 amount);
     error Raffle__RaffleClosed();
+    error Raffle__UpkeepNotNeeded(RaffleState state, uint256 balance, uint256 noPlayers);
 
     /**
      * Type Declarations
@@ -42,21 +43,47 @@ contract Raffle is IRaffle {
     address private s_recentWinner;
     RaffleState private s_raffleState;
 
-    uint256 private constant VRF_SUBSCRIPTION_ID =
-        17184522417954535456058647781288809196340310866013225809895981208296795930336;
+    // uint256 private immutable i_VRF_SUBSCRIPTION_ID = 17184522417954535456058647781288809196340310866013225809895981208296795930336;
     /**
      * Events
      */
-
     event Raffle__Entered(address indexed player, uint256 entranceFee);
     event Raffle__WinnerPicked(address indexed winner, uint256 prize);
 
-    constructor(uint256 entranceFee, uint256 interval) {
+    constructor(
+        uint256 entranceFee,
+        uint256 interval,
+        uint256 _vrfSubscriptionId,
+        address _vrfCoordinator,
+        bytes32 _keyHash
+    ) {
         s_raffleState = RaffleState.OPEN;
         i_entranceFee = entranceFee;
         i_interval = interval;
         s_lastTimeStamp = block.timestamp;
-        s_chainlinkVRF = new SubscriptionConsumer(VRF_SUBSCRIPTION_ID, address(this));
+        s_chainlinkVRF = new SubscriptionConsumer(_vrfSubscriptionId, address(this), _vrfCoordinator, _keyHash);
+    }
+
+    /**
+     * The lottery is ready to have a winner picked
+     * 1. Interval has passed
+     * 2. The lottery is open
+     * 3. The contract has ETH to pay for the winner
+     * 4. There is at least one player
+     */
+    function checkUpkeep(bytes memory /*checkData*/ )
+        public
+        view
+        override
+        returns (bool upkeepNeeded, bytes memory performData)
+    {
+        bool hasIntervalPassed = block.timestamp - s_lastTimeStamp >= i_interval;
+        bool isRaffleOpen = s_raffleState == RaffleState.OPEN;
+        bool hasPlayers = s_players.length > 0;
+        bool hasBalance = address(this).balance > 0;
+        upkeepNeeded = hasIntervalPassed && isRaffleOpen && hasPlayers && hasBalance;
+
+        return (upkeepNeeded, "");
     }
 
     function enterRaffle() external payable validEntranceFee raffleOpen {
@@ -67,10 +94,15 @@ contract Raffle is IRaffle {
     /**
      *
      */
-    function pickWinner() external enoughTimePassed {
+    function performUpkeep(bytes calldata /*performData*/ ) external {
         // 1. Get a random number
         // 2. Use the random number to pick a winner
         // 3. Be automatically called
+        (bool upkeepNeeded,) = checkUpkeep("");
+
+        if (!upkeepNeeded) {
+            revert Raffle__UpkeepNotNeeded(s_raffleState, address(this).balance, s_players.length);
+        }
 
         // Change raffle state to closed so no one can enter
         s_raffleState = RaffleState.CLOSED;
@@ -96,13 +128,6 @@ contract Raffle is IRaffle {
         _;
     }
 
-    modifier enoughTimePassed() {
-        if (block.timestamp - s_lastTimeStamp < i_interval) {
-            revert Raffle__NotEnoughTimePassed(s_lastTimeStamp, i_interval);
-        }
-        _;
-    }
-
     modifier raffleOpen() {
         if (s_raffleState == RaffleState.CLOSED) {
             revert Raffle__RaffleClosed();
@@ -110,7 +135,10 @@ contract Raffle is IRaffle {
         _;
     }
 
+    // CEI: Check, Effects, Interact
     function raffleEnds(uint256[] calldata randomWords) external override {
+        // Checks
+        // Effects (Changes contract internal states)
         uint256 winnerIndex = randomWords[0] % s_players.length;
         address payable winner = s_players[winnerIndex];
         s_recentWinner = winner;
@@ -119,6 +147,7 @@ contract Raffle is IRaffle {
 
         // Reset the raffle state, so that it can be opened again
         s_raffleState = RaffleState.OPEN;
+        emit Raffle__WinnerPicked(winner, address(this).balance);
 
         // Reset the players array
         delete s_players;
@@ -126,7 +155,5 @@ contract Raffle is IRaffle {
         if (!success) {
             revert Raffle__TransferFailed(winner, address(this).balance);
         }
-
-        emit Raffle__WinnerPicked(winner, address(this).balance);
     }
 }

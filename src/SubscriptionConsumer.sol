@@ -39,7 +39,8 @@ contract SubscriptionConsumer is VRFConsumerBaseV2Plus {
     // The gas lane to use, which specifies the maximum gas price to bump to.
     // For a list of available gas lanes on each network,
     // see https://docs.chain.link/docs/vrf/v2-5/supported-networks
-    bytes32 public keyHash = 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae;
+    // bytes32 public keyHash = 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae;
+    bytes32 public keyHash;
 
     // Depends on the number of requested values that you want sent to the
     // fulfillRandomWords() function. Storing each word costs about 20,000 gas,
@@ -62,11 +63,12 @@ contract SubscriptionConsumer is VRFConsumerBaseV2Plus {
      * HARDCODED FOR SEPOLIA
      * COORDINATOR: 0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B
      */
-    constructor(uint256 subscriptionId, address _raffleAddress)
-        VRFConsumerBaseV2Plus(0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B)
+    constructor(uint256 subscriptionId, address _raffleAddress, address _vrfCoordinator, bytes32 _keyHash)
+        VRFConsumerBaseV2Plus(_vrfCoordinator)
     {
         s_subscriptionId = subscriptionId;
         raffleAddress = _raffleAddress;
+        keyHash = _keyHash;
     }
 
     // Assumes the subscription is funded sufficiently.
