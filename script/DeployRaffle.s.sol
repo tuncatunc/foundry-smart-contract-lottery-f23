@@ -11,10 +11,15 @@ contract DeployRaffle is Script {
         HelperConfig helperConfig = new HelperConfig();
 
         vm.startBroadcast();
-        (uint256 entranceFee, uint256 interval, uint256 vrfSubscriptionId, address vrfCoordinator, bytes32 keyHash) =
-            helperConfig.activeConfig();
+        HelperConfig.NetworkConfig memory networkConfig = helperConfig.getNetworkConfig();
 
-        Raffle raffle = new Raffle(entranceFee, interval, vrfSubscriptionId, vrfCoordinator, keyHash);
+        Raffle raffle = new Raffle(
+            networkConfig.entranceFee,
+            networkConfig.interval,
+            networkConfig.vrfSubscriptionId,
+            networkConfig.vrfCoordinator,
+            networkConfig.keyHash
+        );
         vm.stopBroadcast();
 
         return (raffle, helperConfig);

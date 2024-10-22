@@ -3,7 +3,7 @@
 pragma solidity 0.8.19;
 
 import {SubscriptionConsumer} from "./SubscriptionConsumer.sol";
-import {AutomationCompatibleInterface} from "@chainlink/contracts@1.2.0/src/v0.8/automation/AutomationCompatible.sol";
+import {AutomationCompatibleInterface} from "@chainlink/contracts@1.2.0/v0.8/automation/AutomationCompatible.sol";
 
 /**
  * @title Raffle Contract
