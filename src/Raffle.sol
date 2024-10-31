@@ -8,12 +8,20 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts@1.2.0/v0.8/aut
 /**
  * @title Raffle Contract
  * @author Tunca Tunc
- * @notice This contract is for crearing sample raffle
+ * @notice This contract is for creating simple raffle
  * @dev implements Chainlink VRFv2.5
  */
 import {IRaffle} from "./IRaffle.sol";
 
-contract Raffle is IRaffle, AutomationCompatibleInterface {
+abstract contract RaffleEvents {
+    /**
+     * Events
+     */
+    event Raffle__Entered(address indexed player, uint256 entranceFee);
+    event Raffle__WinnerPicked(address indexed winner, uint256 prize);
+}
+
+contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
     /**
      * Errors
      */
@@ -34,7 +42,7 @@ contract Raffle is IRaffle, AutomationCompatibleInterface {
      * State Variables
      */
     uint256 private immutable i_entranceFee;
-    SubscriptionConsumer public s_chainlinkVRF;
+    SubscriptionConsumer private s_chainlinkVRF;
 
     // Duration of lottery in seconds
     uint256 private immutable i_interval;
@@ -44,11 +52,6 @@ contract Raffle is IRaffle, AutomationCompatibleInterface {
     RaffleState private s_raffleState;
 
     // uint256 private immutable i_VRF_SUBSCRIPTION_ID = 17184522417954535456058647781288809196340310866013225809895981208296795930336;
-    /**
-     * Events
-     */
-    event Raffle__Entered(address indexed player, uint256 entranceFee);
-    event Raffle__WinnerPicked(address indexed winner, uint256 prize);
 
     constructor(
         uint256 entranceFee,
@@ -119,6 +122,22 @@ contract Raffle is IRaffle, AutomationCompatibleInterface {
 
     function getInterval() public view returns (uint256) {
         return i_interval;
+    }
+
+    function getRaffleState() public view returns (RaffleState) {
+        return s_raffleState;
+    }
+
+    function getNumberOfPlayers() public view returns (uint256) {
+        return s_players.length;
+    }
+
+    function getPlayer(uint256 index) public view returns (address) {
+        return s_players[index];
+    }
+
+    function getSubscriptionConsumer() public view returns (SubscriptionConsumer) {
+        return s_chainlinkVRF;
     }
 
     modifier validEntranceFee() {

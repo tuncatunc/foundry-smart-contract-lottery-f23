@@ -7,6 +7,7 @@ pragma solidity 0.8.19;
 
 import "forge-std/Script.sol";
 import {VRFCoordinatorV2_5Mock} from "@chainlink/contracts@1.2.0/v0.8/vrf/mocks/VRFCoordinatorV2_5Mock.sol";
+import {MockLinkToken} from "chainlink-brownie-contracts@0.8/mocks/MockLinkToken.sol";
 
 abstract contract Constants {
     /* Mock VRF Coordinator  Values*/
@@ -16,6 +17,8 @@ abstract contract Constants {
 
     uint256 constant SEPOLIA_CHAIN_ID = 11155111;
     uint256 constant ANVIL_CHAIN_ID = 31337;
+
+    address constant FOUNDRY_DEFAULT_SENDER = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
 }
 
 contract HelperConfig is Constants, Script {
@@ -32,6 +35,8 @@ contract HelperConfig is Constants, Script {
         uint256 vrfSubscriptionId;
         address vrfCoordinator;
         bytes32 keyHash;
+        address linkToken;
+        address account;
     }
 
     constructor() {
@@ -48,9 +53,11 @@ contract HelperConfig is Constants, Script {
         NetworkConfig memory config = NetworkConfig({
             entranceFee: 0.001 ether,
             interval: 60,
-            vrfSubscriptionId: 38815361030658434591236559763228998872157401386788044356772190278484794755153,
+            vrfSubscriptionId: 88643892962829376642526568752367248075052116482772790387693005868742629678276,
             vrfCoordinator: 0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B,
-            keyHash: 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae
+            keyHash: 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae,
+            linkToken: 0x779877A7B0D9E8603169DdbD7836e478b4624789,
+            account: 0x9b49c2E118effaBa3a0bA08125eD8192fcDfcEf4
         });
         return config;
     }
@@ -61,19 +68,31 @@ contract HelperConfig is Constants, Script {
             return localNetworkConfig;
         }
 
-        // Deplot mocks
+        // Deploy mocks
         vm.startBroadcast();
         VRFCoordinatorV2_5Mock vrfCoordinatorMock =
             new VRFCoordinatorV2_5Mock(MOCK_BASE_FEE, MOCK_GAS_PRICE, MOCK_WEI_PER_UNIT_LINK);
+
+        console.log("Deploying Mock Link Token on chain %s", block.chainid);
+        MockLinkToken linkToken = new MockLinkToken();
+        console.log("Link Token Address: %s", address(linkToken));
+
+        console.log("Deploying Mock VRF Coordinator on chain %s", block.chainid);
+        uint256 subId = vrfCoordinatorMock.createSubscription();
+        console.log("Subscription Id: %s ", subId, block.chainid);
+
         vm.stopBroadcast();
 
         localNetworkConfig = NetworkConfig({
             entranceFee: 0.001 ether,
             interval: 60,
-            vrfSubscriptionId: 1,
+            vrfSubscriptionId: subId,
             vrfCoordinator: address(vrfCoordinatorMock),
-            keyHash: 0x0
+            keyHash: 0x0,
+            linkToken: address(linkToken),
+            account: FOUNDRY_DEFAULT_SENDER
         });
+        vm.deal(FOUNDRY_DEFAULT_SENDER, 100 ether);
 
         return localNetworkConfig;
     }
@@ -90,5 +109,9 @@ contract HelperConfig is Constants, Script {
 
     function getNetworkConfig() public view returns (NetworkConfig memory) {
         return getNetworkConfigByChainId(block.chainid);
+    }
+
+    function setNetworkConfig(uint256 chainId, NetworkConfig memory config) public {
+        networkConfigs[chainId] = config;
     }
 }

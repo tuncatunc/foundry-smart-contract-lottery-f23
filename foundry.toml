@@ -4,5 +4,11 @@ out = "out"
 libs = ["lib"]
 remappings = [
   "@chainlink/contracts@1.2.0=lib/chainlink-brownie-contracts/contracts/src",
+  "chainlink-brownie-contracts@0.8=lib/chainlink-brownie-contracts/contracts/src/v0.8",
 ]
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+fs_permissions = [
+  { access = "read", path = "./broadcast" },
+  { access = "read", path = "./reports" },
+]
