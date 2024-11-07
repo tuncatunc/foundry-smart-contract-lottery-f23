@@ -218,8 +218,8 @@ FN:179,Raffle.getRecentWinner
 FNDA:2,Raffle.getRecentWinner
 DA:180,2
 FN:183,Raffle.getLatestTimestamp
-FNDA:2,Raffle.getLatestTimestamp
-DA:184,2
+FNDA:1,Raffle.getLatestTimestamp
+DA:184,1
 FN:190,Raffle.requestRandomWords
 FNDA:5,Raffle.requestRandomWords
 DA:192,5

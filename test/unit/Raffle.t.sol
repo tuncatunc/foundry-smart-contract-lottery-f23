@@ -174,18 +174,22 @@ contract RaffleTest is Test, RaffleEvents {
         _;
     }
 
-    function testRaffleFullfillRandomWordsCanOnlyBeCalledAfterPerformUpkeep() public raffleEntered skipFork {
+    function testRaffleFullfillRandomWordsCanOnlyBeCalledAfterPerformUpkeep(uint256 randomRequestId)
+        public
+        raffleEntered
+        skipFork
+    {
         // Arrange
         // Act / Assert
         vm.expectRevert(VRFCoordinatorV2_5Mock.InvalidRequest.selector);
-        VRFCoordinatorV2_5Mock(vrfCoordinator).fulfillRandomWords(0, address(raffle));
+        VRFCoordinatorV2_5Mock(vrfCoordinator).fulfillRandomWords(randomRequestId, address(raffle));
     }
 
     function testRaffleFullfillRandomWordsPickAWinnerAndResetsRaffleState() public raffleEntered skipFork {
         address expectedWinner = address(1);
 
         // Arrange
-        uint256 additionalEnterances = 3;
+        uint256 additionalEnterances = 9;
         uint256 startIndex = 1;
 
         for (uint256 i = startIndex; i < additionalEnterances + startIndex; i++) {
@@ -195,7 +199,6 @@ contract RaffleTest is Test, RaffleEvents {
             raffle.enterRaffle{value: raffleEntraceFee}();
         }
         uint256 startingBalance = expectedWinner.balance;
-        uint256 startingTimeStamp = raffle.getLatestTimestamp();
 
         // Act
         vm.recordLogs();
@@ -206,6 +209,7 @@ contract RaffleTest is Test, RaffleEvents {
         bytes32 requestId = logs[1].topics[1];
 
         // Perform raffle, select a winner and transfer rewards
+        // Mock coordinator random words is 0, 1
         console.log("fulfillRandomWords requestId", uint256(requestId));
         VRFCoordinatorV2_5Mock(vrfCoordinator).fulfillRandomWords(uint256(requestId), address(raffle));
 
