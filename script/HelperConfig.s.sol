@@ -40,13 +40,8 @@ contract HelperConfig is Constants, Script {
     }
 
     constructor() {
-        if (block.chainid == SEPOLIA_CHAIN_ID) {
-            networkConfigs[SEPOLIA_CHAIN_ID] = getSepoliahEthConfig();
-        } else if (block.chainid == ANVIL_CHAIN_ID) {
-            localNetworkConfig = getOrCreateAnvilEthConfig();
-        } else {
-            revert HelperConfig__InvalidChainId(block.chainid);
-        }
+        networkConfigs[SEPOLIA_CHAIN_ID] = getSepoliahEthConfig();
+        localNetworkConfig = getOrCreateAnvilEthConfig();
     }
 
     function getSepoliahEthConfig() public pure returns (NetworkConfig memory) {
@@ -97,7 +92,7 @@ contract HelperConfig is Constants, Script {
         return localNetworkConfig;
     }
 
-    function getNetworkConfigByChainId(uint256 chainId) internal view returns (NetworkConfig memory) {
+    function getNetworkConfigByChainId(uint256 chainId) public view returns (NetworkConfig memory) {
         if (networkConfigs[chainId].vrfCoordinator != address(0)) {
             return networkConfigs[chainId];
         } else if (chainId == SEPOLIA_CHAIN_ID) {

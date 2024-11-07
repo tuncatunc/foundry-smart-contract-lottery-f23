@@ -56,10 +56,7 @@ contract DeployRaffle is Script {
         // Add Raffle contract as VRF consumer
         AddConsumer addConsumer = new AddConsumer();
         addConsumer.addConsumer(
-            networkConfig.account,
-            address(raffle.getSubscriptionConsumer()),
-            networkConfig.vrfCoordinator,
-            networkConfig.vrfSubscriptionId
+            networkConfig.account, address(raffle), networkConfig.vrfCoordinator, networkConfig.vrfSubscriptionId
         );
 
         return (raffle, helperConfig);

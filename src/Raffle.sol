@@ -2,8 +2,10 @@
 
 pragma solidity 0.8.19;
 
-import {SubscriptionConsumer} from "./SubscriptionConsumer.sol";
+import {Test, Vm, console2} from "forge-std/Test.sol";
 import {AutomationCompatibleInterface} from "@chainlink/contracts@1.2.0/v0.8/automation/AutomationCompatible.sol";
+import {VRFConsumerBaseV2Plus} from "@chainlink/contracts@1.2.0/v0.8/vrf/dev/VRFConsumerBaseV2Plus.sol";
+import {VRFV2PlusClient} from "@chainlink/contracts@1.2.0/v0.8/vrf/dev/libraries/VRFV2PlusClient.sol";
 
 /**
  * @title Raffle Contract
@@ -11,17 +13,17 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts@1.2.0/v0.8/aut
  * @notice This contract is for creating simple raffle
  * @dev implements Chainlink VRFv2.5
  */
-import {IRaffle} from "./IRaffle.sol";
-
 abstract contract RaffleEvents {
     /**
      * Events
      */
     event Raffle__Entered(address indexed player, uint256 entranceFee);
     event Raffle__WinnerPicked(address indexed winner, uint256 prize);
+    event Raffle__RequestSent(uint256 indexed requestId, uint32 numWords);
+    event Raffle__RequestFulfilled(uint256 requestId, uint256[] randomWords);
 }
 
-contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
+contract Raffle is AutomationCompatibleInterface, RaffleEvents, VRFConsumerBaseV2Plus {
     /**
      * Errors
      */
@@ -29,6 +31,7 @@ contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
     error Raffle__TransferFailed(address player, uint256 amount);
     error Raffle__RaffleClosed();
     error Raffle__UpkeepNotNeeded(RaffleState state, uint256 balance, uint256 noPlayers);
+    error Raffle__RequestNotFound(uint256 requestId);
 
     /**
      * Type Declarations
@@ -38,11 +41,18 @@ contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
         CLOSED
     }
 
+    struct RequestStatus {
+        bool fulfilled; // whether the request has been successfully fulfilled
+        bool exists; // whether a requestId exists
+        uint256[] randomWords;
+    }
+
     /**
      * State Variables
      */
     uint256 private immutable i_entranceFee;
-    SubscriptionConsumer private s_chainlinkVRF;
+
+    mapping(uint256 => RequestStatus) public s_requests; /* requestId --> requestStatus */
 
     // Duration of lottery in seconds
     uint256 private immutable i_interval;
@@ -50,6 +60,34 @@ contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
     address payable[] private s_players;
     address private s_recentWinner;
     RaffleState private s_raffleState;
+
+    // Your subscription ID.
+    uint256 public s_subscriptionId;
+
+    // Past request IDs.
+    uint256[] public requestIds;
+    uint256 public lastRequestId;
+
+    // The gas lane to use, which specifies the maximum gas price to bump to.
+    // For a list of available gas lanes on each network,
+    // see https://docs.chain.link/docs/vrf/v2-5/supported-networks
+    // bytes32 public keyHash = 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae;
+    bytes32 public keyHash;
+
+    // Depends on the number of requested values that you want sent to the
+    // fulfillRandomWords() function. Storing each word costs about 20,000 gas,
+    // so 100,000 is a safe default for this example contract. Test and adjust
+    // this limit based on the network that you select, the size of the request,
+    // and the processing of the callback request in the fulfillRandomWords()
+    // function.
+    uint32 public callbackGasLimit = 100000;
+
+    // The default is 3, but you can set this higher.
+    uint16 public requestConfirmations = 3;
+
+    // For this example, retrieve 2 random values in one request.
+    // Cannot exceed VRFCoordinatorV2_5.MAX_NUM_WORDS.
+    uint32 public numWords = 2;
 
     // uint256 private immutable i_VRF_SUBSCRIPTION_ID = 17184522417954535456058647781288809196340310866013225809895981208296795930336;
 
@@ -59,12 +97,14 @@ contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
         uint256 _vrfSubscriptionId,
         address _vrfCoordinator,
         bytes32 _keyHash
-    ) {
+    ) VRFConsumerBaseV2Plus(_vrfCoordinator) {
         s_raffleState = RaffleState.OPEN;
+        s_subscriptionId = _vrfSubscriptionId;
+        keyHash = _keyHash;
         i_entranceFee = entranceFee;
         i_interval = interval;
         s_lastTimeStamp = block.timestamp;
-        s_chainlinkVRF = new SubscriptionConsumer(_vrfSubscriptionId, address(this), _vrfCoordinator, _keyHash);
+        // s_chainlinkVRF = new SubscriptionConsumer(_vrfSubscriptionId, address(this), _vrfCoordinator, _keyHash);
     }
 
     /**
@@ -110,7 +150,7 @@ contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
         // Change raffle state to closed so no one can enter
         s_raffleState = RaffleState.CLOSED;
         // Get a random number from Chainlnk VRF
-        s_chainlinkVRF.requestRandomWords(false);
+        requestRandomWords(false);
     }
 
     /**
@@ -136,8 +176,53 @@ contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
         return s_players[index];
     }
 
-    function getSubscriptionConsumer() public view returns (SubscriptionConsumer) {
-        return s_chainlinkVRF;
+    function getRecentWinner() public view returns (address) {
+        return s_recentWinner;
+    }
+
+    function getLatestTimestamp() public view returns (uint256) {
+        return s_lastTimeStamp;
+    }
+
+    // Assumes the subscription is funded sufficiently.
+    // @param enableNativePayment: Set to `true` to enable payment in native tokens, or
+    // `false` to pay in LINK
+    function requestRandomWords(bool enableNativePayment) internal returns (uint256 requestId) {
+        // Will revert if subscription is not set and funded.
+        requestId = s_vrfCoordinator.requestRandomWords(
+            VRFV2PlusClient.RandomWordsRequest({
+                keyHash: keyHash,
+                subId: s_subscriptionId,
+                requestConfirmations: requestConfirmations,
+                callbackGasLimit: callbackGasLimit,
+                numWords: numWords,
+                extraArgs: VRFV2PlusClient._argsToBytes(VRFV2PlusClient.ExtraArgsV1({nativePayment: enableNativePayment}))
+            })
+        );
+        s_requests[requestId] = RequestStatus({randomWords: new uint256[](0), exists: true, fulfilled: false});
+        requestIds.push(requestId);
+        lastRequestId = requestId;
+        emit Raffle__RequestSent(requestId, numWords);
+    }
+
+    /**
+     * @dev This is the function that Chainlink VRF node
+     * calls to send the money to the random winner.
+     */
+    function fulfillRandomWords(uint256 _requestId, uint256[] calldata _randomWords) internal override {
+        s_requests[_requestId].fulfilled = true;
+        s_requests[_requestId].randomWords = _randomWords;
+        emit Raffle__RequestFulfilled(_requestId, _randomWords);
+        raffleEnds(_randomWords);
+    }
+
+    function getRequestStatus(uint256 _requestId)
+        external
+        view
+        returns (bool fulfilled, uint256[] memory randomWords)
+    {
+        RequestStatus memory request = s_requests[_requestId];
+        return (request.fulfilled, request.randomWords);
     }
 
     modifier validEntranceFee() {
@@ -155,8 +240,7 @@ contract Raffle is IRaffle, AutomationCompatibleInterface, RaffleEvents {
     }
 
     // CEI: Check, Effects, Interact
-    function raffleEnds(uint256[] calldata randomWords) external override {
-        // Checks
+    function raffleEnds(uint256[] calldata randomWords) internal {
         // Effects (Changes contract internal states)
         uint256 winnerIndex = randomWords[0] % s_players.length;
         address payable winner = s_players[winnerIndex];
