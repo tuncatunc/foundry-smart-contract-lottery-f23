@@ -87,7 +87,7 @@ contract Raffle is AutomationCompatibleInterface, RaffleEvents, VRFConsumerBaseV
 
     // For this example, retrieve 2 random values in one request.
     // Cannot exceed VRFCoordinatorV2_5.MAX_NUM_WORDS.
-    uint32 public numWords = 2;
+    uint32 public numWords = 1;
 
     // uint256 private immutable i_VRF_SUBSCRIPTION_ID = 17184522417954535456058647781288809196340310866013225809895981208296795930336;
 
@@ -150,7 +150,7 @@ contract Raffle is AutomationCompatibleInterface, RaffleEvents, VRFConsumerBaseV
         // Change raffle state to closed so no one can enter
         s_raffleState = RaffleState.CLOSED;
         // Get a random number from Chainlnk VRF
-        requestRandomWords(false);
+        requestRandomWords(true);
     }
 
     /**

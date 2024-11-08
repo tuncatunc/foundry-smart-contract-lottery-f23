@@ -17,6 +17,7 @@ abstract contract Constants {
 
     uint256 constant SEPOLIA_CHAIN_ID = 11155111;
     uint256 constant ANVIL_CHAIN_ID = 31337;
+    uint256 constant FUJI_CHAIN_ID = 43113;
 
     address constant FOUNDRY_DEFAULT_SENDER = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
 }
@@ -41,7 +42,21 @@ contract HelperConfig is Constants, Script {
 
     constructor() {
         networkConfigs[SEPOLIA_CHAIN_ID] = getSepoliahEthConfig();
+        networkConfigs[FUJI_CHAIN_ID] = getAvalancheFujiConfig();
         localNetworkConfig = getOrCreateAnvilEthConfig();
+    }
+
+    function getAvalancheFujiConfig() public pure returns (NetworkConfig memory) {
+        NetworkConfig memory config = NetworkConfig({
+            entranceFee: 0.001 ether,
+            interval: 60,
+            vrfSubscriptionId: 0,
+            vrfCoordinator: 0x3d2341ADb2D31f1c5530cDC622016af293177AE0,
+            keyHash: 0x0,
+            linkToken: 0x326C977E6efc84E512bB9C30f76E30c160eD06FB,
+            account: 0x9b49c2E118effaBa3a0bA08125eD8192fcDfcEf4
+        });
+        return config;
     }
 
     function getSepoliahEthConfig() public pure returns (NetworkConfig memory) {
@@ -49,6 +64,7 @@ contract HelperConfig is Constants, Script {
             entranceFee: 0.001 ether,
             interval: 60,
             vrfSubscriptionId: 88643892962829376642526568752367248075052116482772790387693005868742629678276,
+            // vrfSubscriptionId: 0,
             vrfCoordinator: 0x9DdfaCa8183c41ad55329BdeeD9F6A8d53168B1B,
             keyHash: 0x787d74caea10b2b357790d5b5247c2f63d1d91572a9846f780606e4d953677ae,
             linkToken: 0x779877A7B0D9E8603169DdbD7836e478b4624789,
@@ -97,6 +113,8 @@ contract HelperConfig is Constants, Script {
             return networkConfigs[chainId];
         } else if (chainId == SEPOLIA_CHAIN_ID) {
             return networkConfigs[SEPOLIA_CHAIN_ID];
+        } else if (chainId == FUJI_CHAIN_ID) {
+            return networkConfigs[FUJI_CHAIN_ID];
         } else {
             return localNetworkConfig;
         }

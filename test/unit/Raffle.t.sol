@@ -223,7 +223,7 @@ contract RaffleTest is Test, RaffleEvents {
         (bool fullfilled, uint256[] memory randomWords) = raffle.getRequestStatus(uint256(requestId));
 
         assert(fullfilled);
-        assertEq(randomWords.length, 2); // 2 random words
+        assertEq(randomWords.length, 1); // 1 random words
         assertEq(recentWinner, expectedWinner);
         assert(raffleState == Raffle.RaffleState.OPEN);
         assertEq(winnerBalance, startingBalance + prize);
